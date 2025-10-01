@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,8 @@ import { IconSymbol } from './IconSymbol';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { DateSuggestion, UserPreferences } from '@/types/DateSuggestion';
 import { formatCurrency } from '@/utils/recommendationEngine';
+import { supabase } from '@/app/integrations/supabase/client';
+import { useRouter } from 'expo-router';
 
 interface RecommendationsListProps {
   recommendations: DateSuggestion[];
@@ -26,6 +28,128 @@ export default function RecommendationsList({
   preferences, 
   onBack 
 }: RecommendationsListProps) {
+  const router = useRouter();
+  const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    checkUser();
+    saveSearchHistory();
+  }, []);
+
+  useEffect(() => {
+    if (user) {
+      loadFavorites();
+    }
+  }, [user]);
+
+  const checkUser = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    setUser(user);
+  };
+
+  const saveSearchHistory = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) return; // Don't save if user is not logged in
+
+      const { error } = await supabase
+        .from('recent_searches')
+        .insert({
+          user_id: user.id,
+          search_query: preferences,
+          search_results: recommendations,
+        });
+
+      if (error) {
+        console.error('Error saving search history:', error);
+      }
+    } catch (error) {
+      console.error('Error saving search history:', error);
+    }
+  };
+
+  const loadFavorites = async () => {
+    try {
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('favorite_places')
+        .select('place_id')
+        .eq('user_id', user.id);
+
+      if (error) {
+        console.error('Error loading favorites:', error);
+      } else {
+        const favoriteIds = new Set(data?.map(fav => fav.place_id) || []);
+        setFavorites(favoriteIds);
+      }
+    } catch (error) {
+      console.error('Error loading favorites:', error);
+    }
+  };
+
+  const toggleFavorite = async (suggestion: DateSuggestion) => {
+    if (!user) {
+      Alert.alert(
+        'Sign In Required',
+        'Please sign in to save favorite places.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Sign In', onPress: () => router.push('/auth') },
+        ]
+      );
+      return;
+    }
+
+    const isFavorite = favorites.has(suggestion.id);
+    
+    try {
+      if (isFavorite) {
+        // Remove from favorites
+        const { error } = await supabase
+          .from('favorite_places')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('place_id', suggestion.id);
+
+        if (error) {
+          console.error('Error removing favorite:', error);
+          Alert.alert('Error', 'Failed to remove from favorites.');
+        } else {
+          setFavorites(prev => {
+            const newFavorites = new Set(prev);
+            newFavorites.delete(suggestion.id);
+            return newFavorites;
+          });
+        }
+      } else {
+        // Add to favorites
+        const { error } = await supabase
+          .from('favorite_places')
+          .insert({
+            user_id: user.id,
+            place_id: suggestion.id,
+            place_name: suggestion.name,
+            place_description: suggestion.description,
+            place_category: suggestion.category,
+            place_location: suggestion.location,
+            place_image_url: suggestion.imageUrl,
+          });
+
+        if (error) {
+          console.error('Error adding favorite:', error);
+          Alert.alert('Error', 'Failed to add to favorites.');
+        } else {
+          setFavorites(prev => new Set(prev).add(suggestion.id));
+        }
+      }
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
+      Alert.alert('Error', 'Failed to update favorites.');
+    }
+  };
   
   const handleLocationPress = (suggestion: DateSuggestion) => {
     Alert.alert(
@@ -188,6 +312,16 @@ export default function RecommendationsList({
                     <IconSymbol name="info.circle" color={colors.secondary} size={18} />
                     <Text style={styles.actionButtonText}>More Info</Text>
                   </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.favoriteButton, favorites.has(suggestion.id) && styles.favoriteButtonActive]}
+                    onPress={() => toggleFavorite(suggestion)}
+                  >
+                    <IconSymbol 
+                      name={favorites.has(suggestion.id) ? "heart.fill" : "heart"} 
+                      color={favorites.has(suggestion.id) ? colors.primary : colors.textSecondary} 
+                      size={18} 
+                    />
+                  </TouchableOpacity>
                 </View>
               </View>
             </View>
@@ -331,6 +465,7 @@ const styles = StyleSheet.create({
   cardActions: {
     flexDirection: 'row',
     gap: 12,
+    alignItems: 'center',
   },
   actionButton: {
     flex: 1,
@@ -349,6 +484,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.text,
     fontWeight: '500',
+  },
+  favoriteButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.highlight,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  favoriteButtonActive: {
+    backgroundColor: colors.highlight,
+    borderColor: colors.primary,
   },
   footer: {
     marginTop: 32,

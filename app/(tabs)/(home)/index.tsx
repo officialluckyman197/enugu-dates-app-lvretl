@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   View, 
   Text, 
@@ -9,7 +9,7 @@ import {
   Alert,
   Platform 
 } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useLocalSearchParams } from 'expo-router';
 import { IconSymbol } from '@/components/IconSymbol';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { UserPreferences } from '@/types/DateSuggestion';
@@ -18,6 +18,8 @@ import { getRecommendations } from '@/utils/recommendationEngine';
 import RecommendationsList from '@/components/RecommendationsList';
 
 export default function HomeScreen() {
+  const params = useLocalSearchParams();
+  
   const [preferences, setPreferences] = useState<UserPreferences>({
     budget: 'moderate',
     location: 'any',
@@ -27,6 +29,25 @@ export default function HomeScreen() {
   
   const [showRecommendations, setShowRecommendations] = useState(false);
   const [recommendations, setRecommendations] = useState([]);
+
+  useEffect(() => {
+    // Check if we have search parameters from recent searches
+    if (params.budget || params.location || params.style || params.groupSize) {
+      const newPreferences: UserPreferences = {
+        budget: (params.budget as any) || preferences.budget,
+        location: (params.location as string) || preferences.location,
+        style: (params.style as any) || preferences.style,
+        groupSize: params.groupSize ? parseInt(params.groupSize as string) : preferences.groupSize,
+      };
+      
+      setPreferences(newPreferences);
+      
+      // Automatically get recommendations
+      const results = getRecommendations(newPreferences);
+      setRecommendations(results);
+      setShowRecommendations(true);
+    }
+  }, [params]);
 
   const budgetOptions = [
     { key: 'budget', label: 'Budget Friendly', subtitle: '₦500 - ₦3,000', icon: 'banknote' },

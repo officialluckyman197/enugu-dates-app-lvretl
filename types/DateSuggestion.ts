@@ -28,3 +28,45 @@ export interface LocationArea {
   name: string;
   description: string;
 }
+
+export interface FavoritePlace {
+  id: string;
+  user_id: string;
+  place_id: string;
+  place_name: string;
+  place_description?: string;
+  place_category?: string;
+  place_location?: string;
+  place_image_url?: string;
+  created_at: string;
+}
+
+export interface RecentSearch {
+  id: string;
+  user_id: string;
+  search_query: UserPreferences;
+  search_results?: DateSuggestion[];
+  created_at: string;
+}
+
+export interface Review {
+  id: string;
+  user_id: string;
+  place_id: string;
+  place_name: string;
+  rating: number;
+  review_text?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserSettings {
+  id: string;
+  user_id: string;
+  theme: 'light' | 'dark' | 'system';
+  notifications_enabled: boolean;
+  location_sharing: boolean;
+  preferred_budget: 'budget' | 'moderate' | 'premium';
+  created_at: string;
+  updated_at: string;
+}

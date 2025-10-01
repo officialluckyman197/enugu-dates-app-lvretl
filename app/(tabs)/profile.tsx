@@ -1,14 +1,95 @@
 
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Alert, Share } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { IconSymbol } from '@/components/IconSymbol';
 import { colors, commonStyles } from '@/styles/commonStyles';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
+import { supabase } from '@/app/integrations/supabase/client';
 
 export default function ProfileScreen() {
+  const router = useRouter();
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    checkUser();
+    
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setUser(session?.user || null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const checkUser = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+    } catch (error) {
+      console.error('Error checking user:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleFeaturePress = (feature: string) => {
-    Alert.alert("Coming Soon", `${feature} feature will be available in a future update!`);
+    console.log('Feature pressed:', feature);
+    
+    // Features that require authentication
+    const authRequiredFeatures = ['Favorite Places', 'Recent Searches', 'Rate & Review', 'Settings'];
+    
+    if (authRequiredFeatures.includes(feature) && !user) {
+      Alert.alert(
+        'Sign In Required',
+        `Please sign in to access ${feature}.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Sign In', onPress: () => router.push('/auth') },
+        ]
+      );
+      return;
+    }
+    
+    switch (feature) {
+      case 'Favorite Places':
+        router.push('/favorite-places');
+        break;
+      case 'Recent Searches':
+        router.push('/recent-searches');
+        break;
+      case 'Rate & Review':
+        router.push('/rate-review');
+        break;
+      case 'Share with Friends':
+        handleShareApp();
+        break;
+      case 'Settings':
+        router.push('/settings');
+        break;
+      case 'Help & Support':
+        router.push('/help-support');
+        break;
+      default:
+        Alert.alert("Coming Soon", `${feature} feature will be available in a future update!`);
+    }
+  };
+
+  const handleShareApp = async () => {
+    try {
+      const result = await Share.share({
+        message: 'Check out Enugu Date Planner! 🌟 Discover amazing places for dates and hangouts in Enugu metropolis. Perfect for couples and friends looking for romantic spots, adventures, cultural experiences, and great food! Download now and explore Enugu like never before! 💕',
+        title: 'Enugu Date Planner - Discover Amazing Places',
+      });
+      
+      if (result.action === Share.sharedAction) {
+        console.log('App shared successfully');
+      }
+    } catch (error) {
+      console.error('Error sharing app:', error);
+      Alert.alert('Error', 'Unable to share the app. Please try again.');
+    }
   };
 
   const profileFeatures = [
@@ -92,11 +173,29 @@ export default function ProfileScreen() {
             <View style={styles.avatarContainer}>
               <IconSymbol name="person.fill" color="white" size={40} />
             </View>
-            <Text style={styles.welcomeText}>Welcome to</Text>
-            <Text style={styles.appName}>Enugu Date Planner</Text>
-            <Text style={styles.subtitle}>
-              Discover amazing places for couples and friends in Enugu metropolis
-            </Text>
+            {user ? (
+              <>
+                <Text style={styles.welcomeText}>Welcome back!</Text>
+                <Text style={styles.userEmail}>{user.email}</Text>
+                <Text style={styles.subtitle}>
+                  Explore your saved places and discover new ones
+                </Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.welcomeText}>Welcome to</Text>
+                <Text style={styles.appName}>Enugu Date Planner</Text>
+                <Text style={styles.subtitle}>
+                  Discover amazing places for couples and friends in Enugu metropolis
+                </Text>
+                <TouchableOpacity
+                  style={styles.signInButton}
+                  onPress={() => router.push('/auth')}
+                >
+                  <Text style={styles.signInButtonText}>Sign In / Sign Up</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
 
           <View style={styles.featuresContainer}>
@@ -193,6 +292,25 @@ const styles = StyleSheet.create({
     color: colors.text,
     marginBottom: 8,
     textAlign: 'center',
+  },
+  userEmail: {
+    fontSize: 16,
+    color: colors.primary,
+    fontWeight: '500',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  signInButton: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 25,
+    marginTop: 16,
+  },
+  signInButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
   },
   subtitle: {
     fontSize: 14,
