@@ -26,6 +26,8 @@ export default function AuthScreen() {
   const [loading, setLoading] = useState(false);
 
   const handleAuth = async () => {
+    console.log('Auth button pressed, isSignUp:', isSignUp);
+    
     if (!email.trim() || !password.trim()) {
       Alert.alert('Missing Information', 'Please enter both email and password.');
       return;
@@ -42,8 +44,12 @@ export default function AuthScreen() {
     }
 
     setLoading(true);
+    console.log('Starting auth process...');
+    
     try {
       if (isSignUp) {
+        console.log('Attempting to sign up user with email:', email);
+        
         const { data, error } = await supabase.auth.signUp({
           email: email.trim(),
           password,
@@ -52,12 +58,16 @@ export default function AuthScreen() {
           }
         });
 
+        console.log('Sign up response:', { data, error });
+
         if (error) {
+          console.error('Sign up error:', error);
           Alert.alert('Sign Up Error', error.message);
         } else {
+          console.log('Sign up successful, showing confirmation message');
           Alert.alert(
             'Check Your Email',
-            'We sent you a confirmation link. Please check your email and click the link to verify your account.',
+            'We sent you a confirmation link. Please check your email and click the link to verify your account before signing in.',
             [
               {
                 text: 'OK',
@@ -72,21 +82,36 @@ export default function AuthScreen() {
           );
         }
       } else {
+        console.log('Attempting to sign in user with email:', email);
+        
         const { data, error } = await supabase.auth.signInWithPassword({
           email: email.trim(),
           password,
         });
 
+        console.log('Sign in response:', { data, error });
+
         if (error) {
-          Alert.alert('Sign In Error', error.message);
+          console.error('Sign in error:', error);
+          
+          // Provide more specific error messages
+          let errorMessage = error.message;
+          if (error.message.includes('Email not confirmed')) {
+            errorMessage = 'Please check your email and click the confirmation link before signing in.';
+          } else if (error.message.includes('Invalid login credentials')) {
+            errorMessage = 'Invalid email or password. Please check your credentials and try again.';
+          }
+          
+          Alert.alert('Sign In Error', errorMessage);
         } else {
+          console.log('Sign in successful');
           Alert.alert('Success', 'Signed in successfully!', [
             { text: 'OK', onPress: () => router.back() }
           ]);
         }
       }
     } catch (error) {
-      console.error('Auth error:', error);
+      console.error('Unexpected auth error:', error);
       Alert.alert('Error', 'An unexpected error occurred. Please try again.');
     } finally {
       setLoading(false);
@@ -94,6 +119,7 @@ export default function AuthScreen() {
   };
 
   const handleGuestContinue = () => {
+    console.log('Guest continue pressed');
     Alert.alert(
       'Continue as Guest',
       'You can browse recommendations without an account, but you won\'t be able to save favorites or write reviews.',
@@ -102,6 +128,35 @@ export default function AuthScreen() {
         { text: 'Continue', onPress: () => router.back() },
       ]
     );
+  };
+
+  const handleResendConfirmation = async () => {
+    if (!email.trim()) {
+      Alert.alert('Email Required', 'Please enter your email address first.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: email.trim(),
+        options: {
+          emailRedirectTo: 'https://natively.dev/email-confirmed'
+        }
+      });
+
+      if (error) {
+        Alert.alert('Error', error.message);
+      } else {
+        Alert.alert('Email Sent', 'A new confirmation email has been sent to your inbox.');
+      }
+    } catch (error) {
+      console.error('Resend confirmation error:', error);
+      Alert.alert('Error', 'Failed to resend confirmation email. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -195,6 +250,18 @@ export default function AuthScreen() {
                   }
                 </Text>
               </TouchableOpacity>
+
+              {!isSignUp && (
+                <TouchableOpacity
+                  style={styles.resendButton}
+                  onPress={handleResendConfirmation}
+                  disabled={loading}
+                >
+                  <Text style={styles.resendButtonText}>
+                    Didn't receive confirmation email? Resend
+                  </Text>
+                </TouchableOpacity>
+              )}
 
               <View style={styles.switchContainer}>
                 <Text style={styles.switchText}>
@@ -299,7 +366,7 @@ const styles = StyleSheet.create({
     padding: 16,
     alignItems: 'center',
     marginTop: 8,
-    marginBottom: 24,
+    marginBottom: 16,
   },
   disabledButton: {
     opacity: 0.6,
@@ -308,6 +375,16 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 18,
     fontWeight: '600',
+  },
+  resendButton: {
+    alignItems: 'center',
+    marginBottom: 24,
+    padding: 8,
+  },
+  resendButtonText: {
+    color: colors.primary,
+    fontSize: 14,
+    textDecorationLine: 'underline',
   },
   switchContainer: {
     flexDirection: 'row',
