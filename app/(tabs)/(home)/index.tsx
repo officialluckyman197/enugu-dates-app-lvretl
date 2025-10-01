@@ -1,161 +1,316 @@
-import React from "react";
-import { Stack, Link } from "expo-router";
-import { FlatList, Pressable, StyleSheet, View, Text, Alert, Platform } from "react-native";
-import { IconSymbol } from "@/components/IconSymbol";
-import { GlassView } from "expo-glass-effect";
-import { useTheme } from "@react-navigation/native";
 
-const ICON_COLOR = "#007AFF";
+import React, { useState } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  ScrollView, 
+  TouchableOpacity, 
+  Alert,
+  Platform 
+} from 'react-native';
+import { Stack } from 'expo-router';
+import { IconSymbol } from '@/components/IconSymbol';
+import { colors, commonStyles } from '@/styles/commonStyles';
+import { UserPreferences } from '@/types/DateSuggestion';
+import { enuguAreas } from '@/data/dateLocations';
+import { getRecommendations } from '@/utils/recommendationEngine';
+import RecommendationsList from '@/components/RecommendationsList';
 
 export default function HomeScreen() {
-  const theme = useTheme();
-  const modalDemos = [
-    {
-      title: "Standard Modal",
-      description: "Full screen modal presentation",
-      route: "/modal",
-      color: "#007AFF",
-    },
-    {
-      title: "Form Sheet",
-      description: "Bottom sheet with detents and grabber",
-      route: "/formsheet",
-      color: "#34C759",
-    },
-    {
-      title: "Transparent Modal",
-      description: "Overlay without obscuring background",
-      route: "/transparent-modal",
-      color: "#FF9500",
-    }
+  const [preferences, setPreferences] = useState<UserPreferences>({
+    budget: 'moderate',
+    location: 'any',
+    style: 'romantic',
+    groupSize: 2
+  });
+  
+  const [showRecommendations, setShowRecommendations] = useState(false);
+  const [recommendations, setRecommendations] = useState([]);
+
+  const budgetOptions = [
+    { key: 'budget', label: 'Budget Friendly', subtitle: '₦500 - ₦3,000', icon: 'banknote' },
+    { key: 'moderate', label: 'Moderate', subtitle: '₦3,000 - ₦10,000', icon: 'creditcard' },
+    { key: 'premium', label: 'Premium', subtitle: '₦10,000+', icon: 'diamond' }
   ];
 
-  const renderModalDemo = ({ item }: { item: (typeof modalDemos)[0] }) => (
-    <GlassView style={[
-      styles.demoCard,
-      Platform.OS !== 'ios' && { backgroundColor: theme.dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }
-    ]} glassEffectStyle="regular">
-      <View style={[styles.demoIcon, { backgroundColor: item.color }]}>
-        <IconSymbol name="square.grid.3x3" color="white" size={24} />
-      </View>
-      <View style={styles.demoContent}>
-        <Text style={[styles.demoTitle, { color: theme.colors.text }]}>{item.title}</Text>
-        <Text style={[styles.demoDescription, { color: theme.dark ? '#98989D' : '#666' }]}>{item.description}</Text>
-      </View>
-      <Link href={item.route as any} asChild>
-        <Pressable>
-          <GlassView style={[
-            styles.tryButton,
-            Platform.OS !== 'ios' && { backgroundColor: theme.dark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)' }
-          ]} glassEffectStyle="clear">
-            <Text style={[styles.tryButtonText, { color: theme.colors.primary }]}>Try It</Text>
-          </GlassView>
-        </Pressable>
-      </Link>
-    </GlassView>
-  );
+  const styleOptions = [
+    { key: 'romantic', label: 'Romantic', subtitle: 'Intimate & cozy', icon: 'heart.fill' },
+    { key: 'adventure', label: 'Adventure', subtitle: 'Exciting & active', icon: 'mountain.2' },
+    { key: 'cultural', label: 'Cultural', subtitle: 'Educational & historic', icon: 'building.columns' },
+    { key: 'relaxing', label: 'Relaxing', subtitle: 'Peaceful & calm', icon: 'leaf' },
+    { key: 'food', label: 'Food & Dining', subtitle: 'Culinary experiences', icon: 'fork.knife' },
+    { key: 'outdoor', label: 'Outdoor', subtitle: 'Nature & fresh air', icon: 'tree' }
+  ];
 
-  const renderHeaderRight = () => (
-    <Pressable
-      onPress={() => Alert.alert("Not Implemented", "This feature is not implemented yet")}
-      style={styles.headerButtonContainer}
-    >
-      <IconSymbol name="plus" color={theme.colors.primary} />
-    </Pressable>
-  );
+  const locationOptions = [
+    { key: 'any', label: 'Any Location', subtitle: 'Show all areas' },
+    ...enuguAreas.map(area => ({
+      key: area.name,
+      label: area.name,
+      subtitle: area.description
+    }))
+  ];
 
-  const renderHeaderLeft = () => (
-    <Pressable
-      onPress={() => Alert.alert("Not Implemented", "This feature is not implemented yet")}
-      style={styles.headerButtonContainer}
-    >
-      <IconSymbol
-        name="gear"
-        color={theme.colors.primary}
-      />
-    </Pressable>
-  );
+  const handleGetRecommendations = () => {
+    console.log('Getting recommendations with preferences:', preferences);
+    const results = getRecommendations(preferences);
+    setRecommendations(results);
+    setShowRecommendations(true);
+  };
+
+  const handleBackToForm = () => {
+    setShowRecommendations(false);
+  };
+
+  if (showRecommendations) {
+    return (
+      <>
+        {Platform.OS === 'ios' && (
+          <Stack.Screen
+            options={{
+              title: "Date Suggestions",
+              headerLeft: () => (
+                <TouchableOpacity onPress={handleBackToForm} style={styles.headerButton}>
+                  <IconSymbol name="chevron.left" color={colors.primary} size={20} />
+                </TouchableOpacity>
+              ),
+            }}
+          />
+        )}
+        <RecommendationsList 
+          recommendations={recommendations} 
+          preferences={preferences}
+          onBack={handleBackToForm}
+        />
+      </>
+    );
+  }
 
   return (
     <>
       {Platform.OS === 'ios' && (
         <Stack.Screen
           options={{
-            title: "Building the app...",
-            headerRight: renderHeaderRight,
-            headerLeft: renderHeaderLeft,
+            title: "Enugu Date Planner",
+            headerRight: () => (
+              <TouchableOpacity 
+                onPress={() => Alert.alert("Info", "Find perfect date spots in Enugu metropolis!")}
+                style={styles.headerButton}
+              >
+                <IconSymbol name="info.circle" color={colors.primary} size={20} />
+              </TouchableOpacity>
+            ),
           }}
         />
       )}
-      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <FlatList
-          data={modalDemos}
-          renderItem={renderModalDemo}
-          keyExtractor={(item) => item.route}
-          contentContainerStyle={[
-            styles.listContainer,
-            Platform.OS !== 'ios' && styles.listContainerWithTabBar
-          ]}
-          contentInsetAdjustmentBehavior="automatic"
-          showsVerticalScrollIndicator={false}
-        />
-      </View>
+      <ScrollView style={[commonStyles.wrapper]} contentContainerStyle={styles.container}>
+        <View style={styles.header}>
+          <Text style={commonStyles.title}>Find Your Perfect Date Spot</Text>
+          <Text style={commonStyles.textSecondary}>
+            Discover amazing places for couples and friends in Enugu metropolis
+          </Text>
+        </View>
+
+        {/* Budget Selection */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>What&apos;s your budget?</Text>
+          <View style={styles.optionsContainer}>
+            {budgetOptions.map((option) => (
+              <TouchableOpacity
+                key={option.key}
+                style={[
+                  styles.optionCard,
+                  preferences.budget === option.key && styles.selectedCard
+                ]}
+                onPress={() => setPreferences(prev => ({ ...prev, budget: option.key as any }))}
+              >
+                <View style={styles.optionIcon}>
+                  <IconSymbol 
+                    name={option.icon as any} 
+                    color={preferences.budget === option.key ? colors.primary : colors.textSecondary} 
+                    size={24} 
+                  />
+                </View>
+                <View style={styles.optionContent}>
+                  <Text style={[
+                    styles.optionTitle,
+                    preferences.budget === option.key && styles.selectedText
+                  ]}>
+                    {option.label}
+                  </Text>
+                  <Text style={styles.optionSubtitle}>{option.subtitle}</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* Style Selection */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>What style do you prefer?</Text>
+          <View style={styles.optionsContainer}>
+            {styleOptions.map((option) => (
+              <TouchableOpacity
+                key={option.key}
+                style={[
+                  styles.optionCard,
+                  preferences.style === option.key && styles.selectedCard
+                ]}
+                onPress={() => setPreferences(prev => ({ ...prev, style: option.key as any }))}
+              >
+                <View style={styles.optionIcon}>
+                  <IconSymbol 
+                    name={option.icon as any} 
+                    color={preferences.style === option.key ? colors.primary : colors.textSecondary} 
+                    size={24} 
+                  />
+                </View>
+                <View style={styles.optionContent}>
+                  <Text style={[
+                    styles.optionTitle,
+                    preferences.style === option.key && styles.selectedText
+                  ]}>
+                    {option.label}
+                  </Text>
+                  <Text style={styles.optionSubtitle}>{option.subtitle}</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* Location Selection */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Preferred location in Enugu?</Text>
+          <View style={styles.optionsContainer}>
+            {locationOptions.map((option) => (
+              <TouchableOpacity
+                key={option.key}
+                style={[
+                  styles.optionCard,
+                  preferences.location === option.key && styles.selectedCard
+                ]}
+                onPress={() => setPreferences(prev => ({ ...prev, location: option.key }))}
+              >
+                <View style={styles.optionIcon}>
+                  <IconSymbol 
+                    name="location" 
+                    color={preferences.location === option.key ? colors.primary : colors.textSecondary} 
+                    size={24} 
+                  />
+                </View>
+                <View style={styles.optionContent}>
+                  <Text style={[
+                    styles.optionTitle,
+                    preferences.location === option.key && styles.selectedText
+                  ]}>
+                    {option.label}
+                  </Text>
+                  <Text style={styles.optionSubtitle}>{option.subtitle}</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* Get Recommendations Button */}
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity 
+            style={styles.recommendButton}
+            onPress={handleGetRecommendations}
+          >
+            <IconSymbol name="sparkles" color="white" size={20} />
+            <Text style={styles.recommendButtonText}>Get Recommendations</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
     </>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    // backgroundColor handled dynamically
-  },
-  listContainer: {
-    paddingVertical: 16,
+    paddingVertical: 20,
     paddingHorizontal: 16,
+    paddingBottom: Platform.OS !== 'ios' ? 100 : 20, // Extra padding for floating tab bar on Android
   },
-  listContainerWithTabBar: {
-    paddingBottom: 100, // Extra padding for floating tab bar
-  },
-  demoCard: {
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    flexDirection: 'row',
+  header: {
     alignItems: 'center',
+    marginBottom: 30,
   },
-  demoIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
+  section: {
+    marginBottom: 30,
   },
-  demoContent: {
-    flex: 1,
-  },
-  demoTitle: {
+  sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    marginBottom: 4,
-    // color handled dynamically
+    color: colors.text,
+    marginBottom: 16,
+    textAlign: 'center',
   },
-  demoDescription: {
-    fontSize: 14,
-    lineHeight: 18,
-    // color handled dynamically
+  optionsContainer: {
+    gap: 12,
   },
-  headerButtonContainer: {
-    padding: 6,
+  optionCard: {
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'transparent',
+    boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
+    elevation: 2,
   },
-  tryButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 6,
+  selectedCard: {
+    borderColor: colors.primary,
+    backgroundColor: colors.highlight,
   },
-  tryButtonText: {
-    fontSize: 14,
+  optionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  optionContent: {
+    flex: 1,
+  },
+  optionTitle: {
+    fontSize: 16,
     fontWeight: '600',
-    // color handled dynamically
+    color: colors.text,
+    marginBottom: 4,
+  },
+  selectedText: {
+    color: colors.primary,
+  },
+  optionSubtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  buttonContainer: {
+    marginTop: 20,
+    marginBottom: 20,
+  },
+  recommendButton: {
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  recommendButtonText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  headerButton: {
+    padding: 8,
   },
 });
